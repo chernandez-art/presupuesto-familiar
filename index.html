@@ -1322,6 +1322,15 @@ const cuotaCRC = (d, tc) => d.moneda === "USD" ? d.cuota * tc : d.cuota;
 const mesActual = () => new Date().toISOString().slice(0, 7);
 const MESES = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
 const PERIODO_MIN = "2026-06";
+// Ingreso del periodo actual; si el mes no tiene datos propios, arrastra el del mes anterior (carry-forward)
+function ingDe(data) {
+  const m = (data && data.periodo) || PERIODO_MIN;
+  const map = (data && data.ingresosPorPeriodo) || {};
+  if (map[m]) return map[m];
+  const prev = Object.keys(map).filter(k => k < m).sort();
+  if (prev.length) return map[prev[prev.length - 1]];
+  return (data && data.ingresos) || { p1q1: 0, p1q2: 0, p2q1: 0, p2q2: 0 };
+}
 function BarraPeriodo({
   periodo,
   onChange
@@ -1390,7 +1399,7 @@ function App() {
   const tc = data?.config.tipoCambio || 500;
   const calc = useMemo(() => {
     if (!data) return null;
-    const ing = data.ingresos;
+    const ing = ingDe(data);
     const ingQ1 = (ing.p1q1 || 0) + (ing.p2q1 || 0);
     const ingQ2 = (ing.p1q2 || 0) + (ing.p2q2 || 0);
     const ingTotal = ingQ1 + ingQ2;
@@ -1487,13 +1496,21 @@ function App() {
     ...d,
     periodo: mes
   }));
-  const updIng = patch => setData(d => ({
-    ...d,
-    ingresos: {
-      ...d.ingresos,
+  const updIng = patch => setData(d => {
+    const m = d.periodo || PERIODO_MIN;
+    const cur = ingDe(d);
+    const map = {
+      ...(d.ingresosPorPeriodo || {})
+    };
+    map[m] = {
+      ...cur,
       ...patch
-    }
-  }));
+    };
+    return {
+      ...d,
+      ingresosPorPeriodo: map
+    };
+  });
   const saveDeuda = x => {
     setData(d => {
       const e = d.deudas.some(y => y.id === x.id);
@@ -2229,16 +2246,26 @@ function Ingresos({
   updConfig
 }) {
   const c = data.config;
-  const ing = data.ingresos;
+  const ing = ingDe(data);
+  const _p = (data.periodo || PERIODO_MIN).split("-");
+  const mesLbl = MESES[+_p[1] - 1] + " " + _p[0];
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     className: "cf-section-t",
     style: {
-      marginBottom: 16
+      marginBottom: 6,
+      textTransform: "capitalize"
     }
   }, /*#__PURE__*/React.createElement(Wallet, {
     size: 20,
     color: "var(--bosque)"
-  }), " Ingresos por quincena"), /*#__PURE__*/React.createElement("div", {
+  }), " Ingresos de ", mesLbl), /*#__PURE__*/React.createElement("p", {
+    style: {
+      margin: "0 0 16px",
+      fontSize: 12.5,
+      color: "#5C6B62",
+      lineHeight: 1.5
+    }
+  }, "Cada mes guarda su propio ingreso. Cambiá de mes con la barra de arriba; los montos parten del mes anterior hasta que los edités."), /*#__PURE__*/React.createElement("div", {
     className: "cf-quincena-grid"
   }, [["p1", c.p1, "p1q1", "p1q2"], ["p2", c.p2, "p2q1", "p2q2"]].map(([k, nombre, q1, q2]) => /*#__PURE__*/React.createElement("div", {
     className: "cf-card",
