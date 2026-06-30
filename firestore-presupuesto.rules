@@ -1,0 +1,14 @@
+// Regla para el Presupuesto Familiar — pegar DENTRO del bloque existente
+// match /databases/{database}/documents { ... }  del proyecto santins-c0d82,
+// SIN borrar las reglas de SANTINS que ya están.
+//
+// Deja que SOLO Christian y Ruth lean/escriban el documento presupuesto/familia.
+// (Sonia, que comparte SANTINS, no puede acceder.)
+
+match /presupuesto/{doc} {
+  allow read, write: if request.auth != null
+    && request.auth.token.email in [
+      'chernandez@seguros-ins.com',
+      'ggruthie92@gmail.com'
+    ];
+}
