@@ -779,6 +779,10 @@ const STYLES = `
 .cf-periodo-lbl{text-align:center;min-width:150px}
 .cf-periodo-lbl b{display:block;font-family:'Fraunces',serif;font-size:18px;font-weight:600;line-height:1.1}
 .cf-periodo-lbl span{font-size:11px;opacity:.82;letter-spacing:.3px}
+.cf-qfoco{display:flex;gap:6px;background:#ECE3D3;border-radius:12px;padding:5px;margin-bottom:16px}
+.cf-qfoco button{flex:1;border:none;background:transparent;color:#5C6B62;font-family:inherit;font-size:13px;font-weight:600;padding:9px 10px;border-radius:9px;cursor:pointer;transition:.15s}
+.cf-qfoco button.on{background:#1A3A2E;color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.14)}
+.cf-qfoco button:not(.on):active{transform:scale(.97)}
 @keyframes cfspin{to{transform:rotate(360deg)}}
 @media(max-width:620px){.cf-two,.cf-quincena-grid{grid-template-columns:1fr}.cf-stat-val{font-size:26px}.cf-fijo .act{opacity:1}}
 `;
@@ -1363,6 +1367,7 @@ function BarraPeriodo({
 }
 function App() {
   const [tab, setTab] = useState("resumen");
+  const [qFoco, setQFoco] = useState("ambas");
   const [data, setData] = useState(null);
   const [modal, setModal] = useState(null);
   const [guardado, setGuardado] = useState(false);
@@ -1654,7 +1659,13 @@ function App() {
   })))), /*#__PURE__*/React.createElement(BarraPeriodo, {
     periodo: data.periodo || "2026-06",
     onChange: setPeriodo
-  }), /*#__PURE__*/React.createElement("nav", {
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "cf-qfoco"
+  }, [["ambas", "Ambas quincenas"], ["1", "1ª quincena"], ["2", "2ª quincena"]].map(([v, l]) => /*#__PURE__*/React.createElement("button", {
+    key: v,
+    className: qFoco === v ? "on" : "",
+    onClick: () => setQFoco(v)
+  }, l))), /*#__PURE__*/React.createElement("nav", {
     className: "cf-nav"
   }, [["resumen", "Resumen", LayoutDashboard], ["deudas", "Deudas", Landmark], ["ingresos", "Ingresos", Wallet], ["presupuesto", "Presupuesto", ClipboardList], ["gastos", "Gastos", Receipt], ["proyector", "Proyector", Rocket], ["plan", "Plan", Compass]].map(([id, label, Icon]) => /*#__PURE__*/React.createElement("button", {
     key: id,
@@ -1666,7 +1677,8 @@ function App() {
     calc: calc,
     data: data,
     ahorroColor: ahorroColor,
-    updConfig: updConfig
+    updConfig: updConfig,
+    qFoco: qFoco
   }), tab === "deudas" && /*#__PURE__*/React.createElement(Deudas, {
     data: data,
     onAdd: () => setModal({
@@ -1681,7 +1693,8 @@ function App() {
     data: data,
     calc: calc,
     updIng: updIng,
-    updConfig: updConfig
+    updConfig: updConfig,
+    qFoco: qFoco
   }), tab === "presupuesto" && /*#__PURE__*/React.createElement(Presupuesto, {
     data: data,
     calc: calc,
@@ -1695,7 +1708,8 @@ function App() {
       tipo: "fijo",
       item: f
     }),
-    onDel: delFijo
+    onDel: delFijo,
+    qFoco: qFoco
   }), tab === "gastos" && /*#__PURE__*/React.createElement(Gastos, {
     data: data,
     calc: calc,
@@ -1706,7 +1720,8 @@ function App() {
       tipo: "gasto",
       item: g
     }),
-    onDel: delGasto
+    onDel: delGasto,
+    qFoco: qFoco
   }), tab === "proyector" && /*#__PURE__*/React.createElement(Proyector, {
     data: data,
     calc: calc
@@ -1735,7 +1750,8 @@ function Resumen({
   calc,
   data,
   ahorroColor,
-  updConfig
+  updConfig,
+  qFoco
 }) {
   const metaPct = data.config.metaAhorro > 0 ? Math.min(100, Math.max(0, calc.ahorro) / data.config.metaAhorro * 100) : 0;
   const flujo = [{
@@ -1810,9 +1826,11 @@ function Resumen({
   }, calc.ahorro >= 0 ? "Disponible para invertir" : "Mes en deficit"))), /*#__PURE__*/React.createElement("div", {
     className: "cf-quincena-grid",
     style: {
-      marginBottom: 16
+      marginBottom: 16,
+      gridTemplateColumns: qFoco === "ambas" ? undefined : "1fr"
     }
   }, [{
+    q: "1",
     t: "Primera quincena",
     ing: calc.ingQ1,
     deuda: calc.deudaQ1,
@@ -1820,13 +1838,14 @@ function Resumen({
     gas: calc.gastoQ1,
     ahorro: calc.ahorroQ1
   }, {
+    q: "2",
     t: "Segunda quincena",
     ing: calc.ingQ2,
     deuda: calc.deudaQ2,
     otros: calc.fijosQ2 - calc.deudaQ2,
     gas: calc.gastoQ2,
     ahorro: calc.ahorroQ2
-  }].map((q, i) => /*#__PURE__*/React.createElement("div", {
+  }].filter(x => qFoco === "ambas" || x.q === qFoco).map((q, i) => /*#__PURE__*/React.createElement("div", {
     className: "cf-card",
     key: i
   }, /*#__PURE__*/React.createElement("div", {
@@ -2243,7 +2262,8 @@ function Ingresos({
   data,
   calc,
   updIng,
-  updConfig
+  updConfig,
+  qFoco
 }) {
   const c = data.config;
   const ing = ingDe(data);
@@ -2281,7 +2301,7 @@ function Ingresos({
     onChange: e => updConfig({
       [k]: e.target.value
     })
-  })), /*#__PURE__*/React.createElement("div", {
+  })), qFoco !== "2" && /*#__PURE__*/React.createElement("div", {
     className: "cf-field"
   }, /*#__PURE__*/React.createElement("label", null, "Ingreso 1a quincena"), /*#__PURE__*/React.createElement("input", {
     className: "cf-input",
@@ -2290,7 +2310,7 @@ function Ingresos({
     onChange: e => updIng({
       [q1]: +e.target.value || 0
     })
-  })), /*#__PURE__*/React.createElement("div", {
+  })), qFoco !== "1" && /*#__PURE__*/React.createElement("div", {
     className: "cf-field",
     style: {
       marginBottom: 6
@@ -2309,8 +2329,8 @@ function Ingresos({
       marginTop: 6
     }
   }, /*#__PURE__*/React.createElement(Linea, {
-    label: "Total mensual",
-    val: (ing[q1] || 0) + (ing[q2] || 0),
+    label: qFoco === "1" ? "Total 1a quincena" : qFoco === "2" ? "Total 2a quincena" : "Total mensual",
+    val: (qFoco !== "2" ? ing[q1] || 0 : 0) + (qFoco !== "1" ? ing[q2] || 0 : 0),
     color: "var(--verde)",
     bold: true
   }))))), /*#__PURE__*/React.createElement("div", {
@@ -2337,7 +2357,8 @@ function Presupuesto({
   onTogglePago,
   onAdd,
   onEdit,
-  onDel
+  onDel,
+  qFoco
 }) {
   const cols = [{
     q: "1",
@@ -2351,7 +2372,7 @@ function Presupuesto({
     ing: calc.ingQ2,
     fijos: calc.fijosQ2,
     sobra: calc.ingQ2 - calc.fijosQ2
-  }];
+  }].filter(c => qFoco === "ambas" || c.q === qFoco);
   const mesNombre = new Date().toLocaleDateString("es-CR", {
     month: "long",
     year: "numeric"
@@ -2370,7 +2391,10 @@ function Presupuesto({
       marginBottom: 16
     }
   }, "Marca la casilla al hacer cada pago: el rubro se pone en verde y baja al final, asi arriba siempre ves lo que falta. El control es de ", /*#__PURE__*/React.createElement("b", null, mesNombre), " y se reinicia solo el proximo mes."), /*#__PURE__*/React.createElement("div", {
-    className: "cf-quincena-grid"
+    className: "cf-quincena-grid",
+    style: {
+      gridTemplateColumns: qFoco === "ambas" ? undefined : "1fr"
+    }
   }, cols.map(col => {
     const items = (data.fijos || []).filter(f => f.quincena === col.q);
     const ordenados = [...items].sort((a, b) => {
@@ -2640,8 +2664,20 @@ function Gastos({
   calc,
   onAdd,
   onEdit,
-  onDel
+  onDel,
+  qFoco
 }) {
+  const mesP = data.periodo || "2026-06";
+  const gMes = (data.gastos || []).filter(g => g.fecha && g.fecha.slice(0, 7) === mesP);
+  const grupos = [{
+    q: "1",
+    t: "Primera quincena",
+    items: gMes.filter(g => +g.fecha.slice(8, 10) <= 15)
+  }, {
+    q: "2",
+    t: "Segunda quincena",
+    items: gMes.filter(g => +g.fecha.slice(8, 10) > 15)
+  }].filter(grp => qFoco === "ambas" || grp.q === qFoco);
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -2735,16 +2771,47 @@ function Gastos({
     style: {
       fontWeight: 600
     }
-  }, fmt(c.value)))))), data.gastos.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, fmt(c.value)))))), gMes.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "cf-card cf-empty"
   }, /*#__PURE__*/React.createElement(Receipt, {
     size: 40
-  }), /*#__PURE__*/React.createElement("p", null, "Registra esos almuerzos fuera y demas gastos para ver a donde se va el dinero.")) : /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("p", null, "Registra esos almuerzos fuera y demas gastos para ver a donde se va el dinero.")) : grupos.map(grp => /*#__PURE__*/React.createElement("div", {
+    key: grp.q,
+    style: {
+      marginBottom: 18
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      justifyContent: "space-between",
+      alignItems: "center",
+      margin: "2px 0 8px"
+    }
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "cf-section-t",
+    style: {
+      fontSize: 15
+    }
+  }, /*#__PURE__*/React.createElement(Coins, {
+    size: 16,
+    color: "var(--ambar)"
+  }), " ", grp.t), /*#__PURE__*/React.createElement("span", {
+    className: "cf-num",
+    style: {
+      fontWeight: 700,
+      color: "var(--terracota)"
+    }
+  }, fmt(grp.items.reduce((s, g) => s + g.monto, 0)))), grp.items.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "cf-stat-sub",
+    style: {
+      padding: "6px 0 12px"
+    }
+  }, "Sin gastos variables en esta quincena.") : /*#__PURE__*/React.createElement("div", {
     style: {
       display: "grid",
       gap: 10
     }
-  }, data.gastos.map(g => {
+  }, grp.items.map(g => {
     const C = CATEGORIAS[g.categoria];
     return /*#__PURE__*/React.createElement("div", {
       className: "cf-row",
@@ -2785,7 +2852,7 @@ function Gastos({
     }, /*#__PURE__*/React.createElement(Trash2, {
       size: 15
     })));
-  })));
+  })))));
 }
 function GastoModal({
   item,
