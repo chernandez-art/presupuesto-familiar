@@ -1405,8 +1405,8 @@ function App() {
   const calc = useMemo(() => {
     if (!data) return null;
     const ing = ingDe(data);
-    const ingQ1 = (ing.p1q1 || 0) + (ing.p2q1 || 0);
-    const ingQ2 = (ing.p1q2 || 0) + (ing.p2q2 || 0);
+    const ingQ1 = (ing.p1q1 || 0) + (ing.p2q1 || 0) + ((ing.p1q1d || 0) + (ing.p2q1d || 0)) * tc;
+    const ingQ2 = (ing.p1q2 || 0) + (ing.p2q2 || 0) + ((ing.p1q2d || 0) + (ing.p2q2d || 0)) * tc;
     const ingTotal = ingQ1 + ingQ2;
     const deudaTotal = data.deudas.reduce((s, d) => s + toCRC(d, tc), 0);
     const fijos = data.fijos || [];
@@ -2266,6 +2266,7 @@ function Ingresos({
   qFoco
 }) {
   const c = data.config;
+  const tc = c.tipoCambio || 500;
   const ing = ingDe(data);
   const _p = (data.periodo || PERIODO_MIN).split("-");
   const mesLbl = MESES[+_p[1] - 1] + " " + _p[0];
@@ -2303,26 +2304,76 @@ function Ingresos({
     })
   })), qFoco !== "2" && /*#__PURE__*/React.createElement("div", {
     className: "cf-field"
-  }, /*#__PURE__*/React.createElement("label", null, "Ingreso 1a quincena"), /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement("label", null, "Ingreso 1a quincena"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
     className: "cf-input",
     type: "number",
+    placeholder: "₡ colones",
+    style: {
+      flex: 1
+    },
     value: ing[q1] || "",
     onChange: e => updIng({
       [q1]: +e.target.value || 0
     })
-  })), qFoco !== "1" && /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("input", {
+    className: "cf-input",
+    type: "number",
+    placeholder: "$ dólares",
+    style: {
+      flex: 1
+    },
+    value: ing[q1 + "d"] || "",
+    onChange: e => updIng({
+      [q1 + "d"]: +e.target.value || 0
+    })
+  })), (ing[q1 + "d"] || 0) > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "cf-stat-sub",
+    style: {
+      marginTop: 4
+    }
+  }, "$", ing[q1 + "d"] || 0, " ≈ ", fmt((ing[q1 + "d"] || 0) * tc))), qFoco !== "1" && /*#__PURE__*/React.createElement("div", {
     className: "cf-field",
     style: {
       marginBottom: 6
     }
-  }, /*#__PURE__*/React.createElement("label", null, "Ingreso 2a quincena"), /*#__PURE__*/React.createElement("input", {
+  }, /*#__PURE__*/React.createElement("label", null, "Ingreso 2a quincena"), /*#__PURE__*/React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, /*#__PURE__*/React.createElement("input", {
     className: "cf-input",
     type: "number",
+    placeholder: "₡ colones",
+    style: {
+      flex: 1
+    },
     value: ing[q2] || "",
     onChange: e => updIng({
       [q2]: +e.target.value || 0
     })
-  })), /*#__PURE__*/React.createElement("div", {
+  }), /*#__PURE__*/React.createElement("input", {
+    className: "cf-input",
+    type: "number",
+    placeholder: "$ dólares",
+    style: {
+      flex: 1
+    },
+    value: ing[q2 + "d"] || "",
+    onChange: e => updIng({
+      [q2 + "d"]: +e.target.value || 0
+    })
+  })), (ing[q2 + "d"] || 0) > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "cf-stat-sub",
+    style: {
+      marginTop: 4
+    }
+  }, "$", ing[q2 + "d"] || 0, " ≈ ", fmt((ing[q2 + "d"] || 0) * tc))), /*#__PURE__*/React.createElement("div", {
     style: {
       borderTop: "1px solid var(--linea)",
       paddingTop: 12,
@@ -2330,7 +2381,7 @@ function Ingresos({
     }
   }, /*#__PURE__*/React.createElement(Linea, {
     label: qFoco === "1" ? "Total 1a quincena" : qFoco === "2" ? "Total 2a quincena" : "Total mensual",
-    val: (qFoco !== "2" ? ing[q1] || 0 : 0) + (qFoco !== "1" ? ing[q2] || 0 : 0),
+    val: (qFoco !== "2" ? (ing[q1] || 0) + (ing[q1 + "d"] || 0) * tc : 0) + (qFoco !== "1" ? (ing[q2] || 0) + (ing[q2 + "d"] || 0) * tc : 0),
     color: "var(--verde)",
     bold: true
   }))))), /*#__PURE__*/React.createElement("div", {
