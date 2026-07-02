@@ -760,6 +760,8 @@ const STYLES = `
 .cf-fijo.paid .rb{text-decoration:line-through;color:var(--tinta-suave)}
 .cf-fijo.paid .mo{color:var(--verde-claro)}
 .cf-fijo.paid .dot{opacity:.35}
+.cf-fijo .cf-diachip{flex-shrink:0;font-size:11px;font-weight:600;color:var(--bosque);background:rgba(26,58,46,.08);border-radius:6px;padding:2px 7px;white-space:nowrap}
+.cf-fijo.paid .cf-diachip{opacity:.5}
 .cf-ia{background:linear-gradient(135deg,rgba(58,110,165,.08),rgba(45,106,79,.06));border:1px solid #d7e0ea;border-radius:12px;padding:12px 14px;margin-top:10px;font-size:13.5px;line-height:1.5;color:var(--tinta)}
 .cf-ia-head{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#3A6EA5;margin-bottom:6px}
 .cf-ia-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:9px;border:1px solid #3A6EA5;background:transparent;color:#3A6EA5;font:inherit;font-weight:600;font-size:12.5px;cursor:pointer;transition:.15s}
@@ -2452,7 +2454,10 @@ function Presupuesto({
       const pa = pagos[a.id] ? 1 : 0,
         pb = pagos[b.id] ? 1 : 0;
       if (pa !== pb) return pa - pb; // pendientes arriba, pagados abajo
-      return b.monto - a.monto; // luego por monto
+      const da = +a.dia || 99,
+        db = +b.dia || 99;
+      if (da !== db) return da - db; // luego por día de rebajo (los sin día, al final)
+      return b.monto - a.monto; // y por monto
     });
     const total = items.reduce((s, f) => s + f.monto, 0);
     const pagado = items.reduce((s, f) => s + (pagos[f.id] ? f.monto : 0), 0);
@@ -2513,7 +2518,10 @@ function Presupuesto({
         }
       }), /*#__PURE__*/React.createElement("span", {
         className: "rb"
-      }, f.rubro), /*#__PURE__*/React.createElement("span", {
+      }, f.rubro), f.dia && /*#__PURE__*/React.createElement("span", {
+        className: "cf-diachip",
+        title: "Se rebaja el día " + f.dia + " de cada mes"
+      }, "día ", f.dia), /*#__PURE__*/React.createElement("span", {
         className: "mo cf-num"
       }, fmt(f.monto)), /*#__PURE__*/React.createElement("span", {
         className: "act"
@@ -2699,6 +2707,21 @@ function FijoModal({
     className: f.quincena === "2" ? "on" : "",
     onClick: () => set("quincena", "2")
   }, "2a quincena"))), /*#__PURE__*/React.createElement("div", {
+    className: "cf-field"
+  }, /*#__PURE__*/React.createElement("label", null, "Día que se rebaja (opcional)"), /*#__PURE__*/React.createElement("input", {
+    className: "cf-input",
+    type: "number",
+    min: 1,
+    max: 31,
+    placeholder: "Ej. 16 — el día del mes que se cobra",
+    value: f.dia || "",
+    onChange: e => set("dia", e.target.value ? Math.min(31, Math.max(1, Math.floor(+e.target.value))) : "")
+  }), /*#__PURE__*/React.createElement("p", {
+    className: "sub",
+    style: {
+      marginTop: 6
+    }
+  }, "Para pagos automáticos (Netflix, Disney, cloud…): así ves cuándo cae cada cobro.")), /*#__PURE__*/React.createElement("div", {
     className: "cf-modal-foot"
   }, /*#__PURE__*/React.createElement("button", {
     className: "cf-btn cf-btn-gh",
