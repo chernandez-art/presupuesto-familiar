@@ -3481,8 +3481,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
   var COL = "presupuesto", DOCID = "familia", LS_KEY = "finanzas:estado:v17";
   var SESSION = Math.random().toString(36).slice(2) + "." + Date.now().toString(36);
   var auth = null, db = null, ready = false, user = null, unsub = null;
-  var syncReady = false, lastRemoteJSON = null, lastPushJSON = null;
+  var syncReady = false, lastSeenJSON = null, localAt = 0, firstPush = true;
   var isLocal = location.protocol === "file:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  try { localAt = +(localStorage.getItem(LS_KEY + ":at") || 0) || 0; } catch (e) {}
 
   function $(id) { return document.getElementById(id); }
   function gateMsg(txt, kind) { var m = $("cf-gate-msg"); if (!m) return; m.textContent = txt || ""; m.style.color = kind === "muted" ? "rgba(255,255,255,.7)" : "#ffd0c9"; }
@@ -3514,14 +3515,28 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
     })();
   }
 
-  window.__cfPush = function (data) {
-    if (!ready || !user || !db || !syncReady) return;
+  function doPush(data) {
     var json; try { json = JSON.stringify(data); } catch (e) { return; }
-    if (json === lastRemoteJSON || json === lastPushJSON) return;
-    lastPushJSON = json;
-    db.collection(COL).doc(DOCID).set({ state: data, updatedAt: new Date().toISOString(), updatedBy: (user.email || ""), session: SESSION })
+    lastSeenJSON = json;
+    localAt = Date.now();
+    try { localStorage.setItem(LS_KEY + ":at", String(localAt)); } catch (e) {}
+    if (!ready || !user || !db) return;
+    db.collection(COL).doc(DOCID).set({ state: data, updatedAt: localAt, updatedBy: (user.email || ""), session: SESSION })
       .then(function () { setSync("ok"); })
       .catch(function (e) { console.warn("cf push", e); setSync("err"); });
+  }
+  window.__cfPush = function (data) {
+    var json; try { json = JSON.stringify(data); } catch (e) { return; }
+    // La primera llamada es la carga inicial: fija la base, no empuja ni re-sella la fecha.
+    if (firstPush) { firstPush = false; lastSeenJSON = json; return; }
+    if (json === lastSeenJSON) return; // no hubo cambio real (o es eco de lo remoto)
+    if (!ready || !user || !db || !syncReady) {
+      // Cambio local antes de estar listo el sync: se guarda y se sella para que gane por fecha.
+      lastSeenJSON = json; localAt = Date.now();
+      try { localStorage.setItem(LS_KEY + ":at", String(localAt)); } catch (e) {}
+      return;
+    }
+    doPush(data);
   };
 
   function startSync() {
@@ -3531,17 +3546,26 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
       if (!snap.exists) {
         syncReady = true;
         var cur = readLocal();
-        if (cur) { lastPushJSON = null; window.__cfPush(cur); }
+        if (cur) doPush(cur);
         setSync("ok");
         return;
       }
       var d = snap.data() || {};
       if (d.session === SESSION) { syncReady = true; setSync("ok"); return; }
       var st = d.state;
+      var remoteAt = +d.updatedAt || 0;
       if (st) {
-        try { lastRemoteJSON = JSON.stringify(st); } catch (e) { lastRemoteJSON = null; }
-        lastPushJSON = lastRemoteJSON;
-        applyRemote(st);
+        if (remoteAt > localAt) {
+          // Lo remoto es más nuevo: se aplica.
+          try { lastSeenJSON = JSON.stringify(st); } catch (e) { lastSeenJSON = null; }
+          localAt = remoteAt;
+          try { localStorage.setItem(LS_KEY + ":at", String(localAt)); } catch (e) {}
+          applyRemote(st);
+        } else {
+          // Lo local es igual o más nuevo: NO se pisa; se sube lo local.
+          var cur2 = readLocal();
+          if (cur2) doPush(cur2);
+        }
       }
       syncReady = true; setSync("ok");
     }, function (err) { console.warn("cf snapshot", err); setSync("err"); });
@@ -3578,7 +3602,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
     try {
       if (!firebase.apps.length) firebase.initializeApp(CFG);
       auth = firebase.auth(); db = firebase.firestore(); ready = true;
-      auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function () {});
+      auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(function () {});
       auth.onAuthStateChanged(function (u) {
         user = u;
         if (u) { hideGate(); startSync(); }
