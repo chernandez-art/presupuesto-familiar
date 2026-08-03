@@ -3663,10 +3663,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
     })();
   }
 
-  function doPush(data) {
+  function doPush(data, at) {
     var json; try { json = JSON.stringify(data); } catch (e) { return; }
     lastSeenJSON = json;
-    localAt = Date.now();
+    localAt = (at != null ? at : Date.now());
     try { localStorage.setItem(LS_KEY + ":at", String(localAt)); } catch (e) {}
     if (!ready || !user || !db) return;
     db.collection(COL).doc(DOCID).set({ state: data, updatedAt: localAt, updatedBy: (quien || "familia"), session: SESSION })
@@ -3694,7 +3694,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
       if (!snap.exists) {
         syncReady = true;
         var cur = readLocal();
-        if (cur) doPush(cur);
+        if (cur) doPush(cur, localAt);
         setSync("ok");
         return;
       }
@@ -3712,7 +3712,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
         } else {
           // Lo local es igual o más nuevo: NO se pisa; se sube lo local.
           var cur2 = readLocal();
-          if (cur2) doPush(cur2);
+          if (cur2) doPush(cur2, localAt);
         }
       }
       syncReady = true; setSync("ok");
