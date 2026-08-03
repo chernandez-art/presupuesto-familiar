@@ -23,6 +23,10 @@
 #cf-gate-btn:active{transform:scale(.98)}
 #cf-gate-msg{min-height:18px;margin-top:14px;font-size:13px;color:#ffd0c9;line-height:1.4}
 #cf-gate-skip{display:none;margin-top:16px;color:rgba(255,255,255,.55);font-size:12.5px;text-decoration:underline;cursor:pointer}
+.cf-gate-users{display:flex;gap:10px;margin:0 0 14px}
+.cf-gate-user{flex:1;padding:13px;border-radius:12px;border:1px solid rgba(255,255,255,.22);background:rgba(255,255,255,.08);color:#fff;font-size:15px;font-weight:600;cursor:pointer;transition:.15s}
+.cf-gate-user:active{transform:scale(.98)}
+.cf-gate-user.sel{background:#D4A017;color:#1A3A2E;border-color:#D4A017}
 #cf-sync{display:none;position:fixed;right:12px;bottom:12px;z-index:9000;align-items:center;gap:7px;background:rgba(26,58,46,.92);color:#fff;padding:7px 10px 7px 11px;border-radius:999px;font:500 12px system-ui,sans-serif;box-shadow:0 6px 18px rgba(0,0,0,.22)}
 #cf-sync-dot{width:9px;height:9px;border-radius:50%;background:#D4A017;flex:0 0 auto}
 #cf-sync-logout{margin-left:3px;background:transparent;border:0;color:rgba(255,255,255,.7);font-size:14px;cursor:pointer;padding:0 2px}
@@ -31,12 +35,14 @@
   <div class="cf-gate-card">
     <div class="cf-gate-logo">&#128154;</div>
     <h1>Presupuesto Familiar</h1>
-    <p class="cf-gate-sub">Ingres&aacute; para ver y editar el presupuesto compartido.</p>
-    <input id="cf-gate-email" type="email" inputmode="email" autocomplete="username" placeholder="Correo" />
-    <input id="cf-gate-pass" type="password" autocomplete="current-password" placeholder="Contrase&ntilde;a" />
-    <button id="cf-gate-btn">Ingresar</button>
+    <p class="cf-gate-sub">Eleg&iacute; qui&eacute;n sos e ingres&aacute; el c&oacute;digo.</p>
+    <div class="cf-gate-users">
+      <button type="button" class="cf-gate-user" data-user="Christian">Christian</button>
+      <button type="button" class="cf-gate-user" data-user="Ruthie">Ruthie</button>
+    </div>
+    <input id="cf-gate-code" type="password" inputmode="numeric" autocomplete="off" placeholder="C&oacute;digo" />
+    <button id="cf-gate-btn">Entrar</button>
     <div id="cf-gate-msg"></div>
-    <span id="cf-gate-skip">Seguir sin nube (solo este dispositivo)</span>
   </div>
 </div>
 <div id="cf-sync">
@@ -3623,15 +3629,17 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
   var auth = null, db = null, ready = false, user = null, unsub = null;
   var syncReady = false, lastSeenJSON = null, localAt = 0, firstPush = true;
   var isLocal = location.protocol === "file:" || /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+  var PIN = "1986", quien = "", unlocked = false;
   try { localAt = +(localStorage.getItem(LS_KEY + ":at") || 0) || 0; } catch (e) {}
+  try { quien = localStorage.getItem("cf_user") || ""; } catch (e) {}
 
   function $(id) { return document.getElementById(id); }
   function gateMsg(txt, kind) { var m = $("cf-gate-msg"); if (!m) return; m.textContent = txt || ""; m.style.color = kind === "muted" ? "rgba(255,255,255,.7)" : "#ffd0c9"; }
-  function showGate() { var g = $("cf-gate"); if (g) g.style.display = "flex"; setSync("off"); }
-  function hideGate() { var g = $("cf-gate"); if (g) g.style.display = "none"; }
+  function showGate() { unlocked = false; var g = $("cf-gate"); if (g) g.style.display = "flex"; setSync("off"); }
+  function hideGate() { unlocked = true; var g = $("cf-gate"); if (g) g.style.display = "none"; }
   function setSync(state) {
     var c = $("cf-sync"); if (!c) return;
-    if (state === "off") { c.style.display = "none"; return; }
+    if (!unlocked || state === "off") { c.style.display = "none"; return; }
     c.style.display = "flex";
     var dot = $("cf-sync-dot"), lbl = $("cf-sync-lbl");
     if (state === "ok") { dot.style.background = "#40916C"; lbl.textContent = "Sincronizado"; }
@@ -3661,7 +3669,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
     localAt = Date.now();
     try { localStorage.setItem(LS_KEY + ":at", String(localAt)); } catch (e) {}
     if (!ready || !user || !db) return;
-    db.collection(COL).doc(DOCID).set({ state: data, updatedAt: localAt, updatedBy: (user.email || ""), session: SESSION })
+    db.collection(COL).doc(DOCID).set({ state: data, updatedAt: localAt, updatedBy: (quien || "familia"), session: SESSION })
       .then(function () { setSync("ok"); })
       .catch(function (e) { console.warn("cf push", e); setSync("err"); });
   }
@@ -3711,44 +3719,48 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
     }, function (err) { console.warn("cf snapshot", err); setSync("err"); });
   }
 
-  window.__cfLogout = function () { if (auth) auth.signOut(); };
+  // Re-bloquear: vuelve a mostrar la puerta del codigo (no toca el acceso anonimo del sync).
+  window.__cfLogout = function () { showGate(); var c = $("cf-gate-code"); if (c) c.value = ""; };
 
-  function doLogin() {
-    if (!ready) { gateMsg("Firebase no esta listo. Revisa tu internet y recarga la pagina."); return; }
-    var email = (($("cf-gate-email").value) || "").trim();
-    var pass = ($("cf-gate-pass").value) || "";
-    if (!email || !pass) { gateMsg("Ingresa correo y contrasena."); return; }
-    gateMsg("Ingresando…", "muted");
-    auth.signInWithEmailAndPassword(email, pass)
-      .then(function () { gateMsg(""); var p = $("cf-gate-pass"); if (p) p.value = ""; })
-      .catch(function (err) { gateMsg(authErr(err)); });
+  function selUser(u) {
+    quien = u;
+    var btns = document.querySelectorAll(".cf-gate-user");
+    for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("sel", btns[i].getAttribute("data-user") === u);
+  }
+  function entrar() {
+    if (!quien) { gateMsg("Elegí quién sos (Christian o Ruthie)."); return; }
+    var code = ($("cf-gate-code") && $("cf-gate-code").value) || "";
+    if (code !== PIN) { gateMsg("Código incorrecto."); return; }
+    try { localStorage.setItem("cf_user", quien); } catch (e) {}
+    gateMsg("");
+    var c = $("cf-gate-code"); if (c) c.value = "";
+    hideGate();
+    setSync(user ? "ok" : "off");
   }
 
   function wire() {
-    var btn = $("cf-gate-btn"); if (btn) btn.addEventListener("click", doLogin);
-    var pass = $("cf-gate-pass"); if (pass) pass.addEventListener("keydown", function (e) { if (e.key === "Enter") doLogin(); });
-    var lo = $("cf-sync-logout"); if (lo) lo.addEventListener("click", function () { if (confirm("¿Cerrar sesion en este dispositivo?")) window.__cfLogout(); });
-    var sk = $("cf-gate-skip");
-    if (sk && isLocal) { sk.style.display = "block"; sk.addEventListener("click", function () { hideGate(); setSync("off"); }); }
+    var btn = $("cf-gate-btn"); if (btn) btn.addEventListener("click", entrar);
+    var code = $("cf-gate-code"); if (code) code.addEventListener("keydown", function (e) { if (e.key === "Enter") entrar(); });
+    var us = document.querySelectorAll(".cf-gate-user");
+    for (var i = 0; i < us.length; i++) us[i].addEventListener("click", function () { selUser(this.getAttribute("data-user")); });
+    if (quien) selUser(quien);
+    var lo = $("cf-sync-logout"); if (lo) lo.addEventListener("click", function () { window.__cfLogout(); });
   }
 
   function init() {
     wire();
-    if (typeof firebase === "undefined") {
-      gateMsg("No se pudo cargar Firebase. Revisa tu internet y recarga la pagina.");
-      var sk = $("cf-gate-skip"); if (sk) { sk.style.display = "block"; sk.onclick = function () { hideGate(); setSync("off"); }; }
-      return;
-    }
+    if (typeof firebase === "undefined") { return; } // sin internet/Firebase: la app funciona local con el codigo
     try {
       if (!firebase.apps.length) firebase.initializeApp(CFG);
       auth = firebase.auth(); db = firebase.firestore(); ready = true;
-      auth.setPersistence(firebase.auth.Auth.Persistence.SESSION).catch(function () {});
+      auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL).catch(function () {});
       auth.onAuthStateChanged(function (u) {
         user = u;
-        if (u) { hideGate(); startSync(); }
-        else { showGate(); if (unsub) { unsub(); unsub = null; } syncReady = false; }
+        if (u) startSync();
+        else { if (unsub) { unsub(); unsub = null; } syncReady = false; }
       });
-    } catch (e) { console.error("fbInit", e); gateMsg("Error iniciando Firebase: " + e.message); }
+      auth.signInAnonymously().catch(function (e) { console.warn("anon auth (habilitar Acceso anonimo en Firebase)", e); });
+    } catch (e) { console.error("fbInit", e); }
   }
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
