@@ -2,13 +2,15 @@
 // match /databases/{database}/documents { ... }  del proyecto santins-c0d82,
 // SIN borrar las reglas de SANTINS que ya están.
 //
-// Deja que SOLO Christian y Ruth lean/escriban el documento presupuesto/familia.
-// (Sonia, que comparte SANTINS, no puede acceder.)
+// El acceso a la app es con CÓDIGO (no correo/clave). Por detrás el sync usa
+// "Acceso anónimo" de Firebase, así que la regla permite leer/escribir el
+// documento del presupuesto a cualquier usuario autenticado (incluye anónimo).
+// Solo afecta a la colección 'presupuesto'; las colecciones de SANTINS quedan
+// protegidas por sus propias reglas (por UID/correo).
+//
+// IMPORTANTE: además hay que habilitar en la consola:
+//   Authentication → Sign-in method → Anonymous → Enable.
 
 match /presupuesto/{doc} {
-  allow read, write: if request.auth != null
-    && request.auth.token.email in [
-      'chernandez@seguros-ins.com',
-      'ggruthie92@gmail.com'
-    ];
+  allow read, write: if request.auth != null;
 }
