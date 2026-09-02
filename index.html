@@ -1343,15 +1343,30 @@ function ingDe(data) {
   if (prev.length) return map[prev[prev.length - 1]];
   return (data && data.ingresos) || { p1q1: 0, p1q2: 0, p2q1: 0, p2q2: 0 };
 }
-// Quincena con pagos pendientes ("1"/"2") del periodo actual; "ambas" si estan todas al dia
-function quincenaPendiente(data) {
-  const m = (data && data.periodo) || PERIODO_MIN;
+// Quincena con pagos pendientes ("1"/"2") del mes m; "ambas" si estan todas al dia
+function quincenaPendiente(data, m) {
+  m = m || (data && data.periodo) || PERIODO_MIN;
   const pagos = (data && data.pagos && data.pagos[m]) || {};
   const fijos = (data && data.fijos) || [];
   const pend = q => fijos.some(f => f.quincena === q && (f.monto || 0) > 0 && !pagos[f.id]);
   if (pend("1")) return "1";
   if (pend("2")) return "2";
   return "ambas";
+}
+function mesMenos(m, n) {
+  const p = String(m).split("-").map(Number);
+  const d = new Date(p[0], p[1] - 1 - n, 1);
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0");
+}
+// Mes en el que abre la app: el actual, salvo que el mes anterior siga con pagos pendientes (todavia lo estas pagando)
+function mesInicial(data) {
+  let cur = mesActual();
+  if (cur < PERIODO_MIN) cur = PERIODO_MIN;
+  const prev = mesMenos(cur, 1);
+  const pagosPrev = (data && data.pagos && data.pagos[prev]) || {};
+  const activo = Object.keys(pagosPrev).length > 0;
+  if (prev >= PERIODO_MIN && activo && quincenaPendiente(data, prev) !== "ambas") return prev;
+  return cur;
 }
 function BarraPeriodo({
   periodo,
@@ -1394,14 +1409,14 @@ function App() {
       try {
         const raw = localStorage.getItem(KEY);
         const base = raw ? JSON.parse(raw) : SEED;
-        const hoy = mesActual();
         const obj = {
           ...base,
-          periodo: hoy < PERIODO_MIN ? PERIODO_MIN : hoy,
           ahorros: base.ahorros || [{ id: 501, titular: "Ruth", banco: "Banco Nacional", saldo: 0, moneda: "CRC" }, { id: 502, titular: "Christian", banco: "Banco Nacional", saldo: 0, moneda: "CRC" }]
         };
+        const mIni = mesInicial(obj);
+        obj.periodo = mIni;
         setData(obj);
-        setQFoco(quincenaPendiente(obj));
+        setQFoco(quincenaPendiente(obj, mIni));
       } catch {
         setData(SEED);
       }
