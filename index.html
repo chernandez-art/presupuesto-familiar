@@ -1343,6 +1343,16 @@ function ingDe(data) {
   if (prev.length) return map[prev[prev.length - 1]];
   return (data && data.ingresos) || { p1q1: 0, p1q2: 0, p2q1: 0, p2q2: 0 };
 }
+// Quincena con pagos pendientes ("1"/"2") del periodo actual; "ambas" si estan todas al dia
+function quincenaPendiente(data) {
+  const m = (data && data.periodo) || PERIODO_MIN;
+  const pagos = (data && data.pagos && data.pagos[m]) || {};
+  const fijos = (data && data.fijos) || [];
+  const pend = q => fijos.some(f => f.quincena === q && (f.monto || 0) > 0 && !pagos[f.id]);
+  if (pend("1")) return "1";
+  if (pend("2")) return "2";
+  return "ambas";
+}
 function BarraPeriodo({
   periodo,
   onChange
@@ -1385,11 +1395,13 @@ function App() {
         const raw = localStorage.getItem(KEY);
         const base = raw ? JSON.parse(raw) : SEED;
         const hoy = mesActual();
-        setData({
+        const obj = {
           ...base,
           periodo: hoy < PERIODO_MIN ? PERIODO_MIN : hoy,
           ahorros: base.ahorros || [{ id: 501, titular: "Ruth", banco: "Banco Nacional", saldo: 0, moneda: "CRC" }, { id: 502, titular: "Christian", banco: "Banco Nacional", saldo: 0, moneda: "CRC" }]
-        });
+        };
+        setData(obj);
+        setQFoco(quincenaPendiente(obj));
       } catch {
         setData(SEED);
       }
