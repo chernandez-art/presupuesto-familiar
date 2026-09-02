@@ -1384,7 +1384,7 @@ function BarraPeriodo({
   }, "\u203A"));
 }
 function App() {
-  const [tab, setTab] = useState("resumen");
+  const [tab, setTab] = useState("presupuesto");
   const [qFoco, setQFoco] = useState("ambas");
   const [data, setData] = useState(null);
   const [modal, setModal] = useState(null);
@@ -3738,6 +3738,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
     quien = u;
     var btns = document.querySelectorAll(".cf-gate-user");
     for (var i = 0; i < btns.length; i++) btns[i].classList.toggle("sel", btns[i].getAttribute("data-user") === u);
+    var code = $("cf-gate-code"); if (code && (code.value || "") === PIN) entrar();
   }
   function entrar() {
     if (!quien) { gateMsg("Elegí quién sos (Christian o Ruthie)."); return; }
@@ -3752,7 +3753,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(/*#__PURE__*/React.c
 
   function wire() {
     var btn = $("cf-gate-btn"); if (btn) btn.addEventListener("click", entrar);
-    var code = $("cf-gate-code"); if (code) code.addEventListener("keydown", function (e) { if (e.key === "Enter") entrar(); });
+    var code = $("cf-gate-code"); if (code) { code.addEventListener("keydown", function (e) { if (e.key === "Enter") entrar(); }); code.addEventListener("input", function () { if (quien && (code.value || "") === PIN) entrar(); }); }
     var us = document.querySelectorAll(".cf-gate-user");
     for (var i = 0; i < us.length; i++) us[i].addEventListener("click", function () { selUser(this.getAttribute("data-user")); });
     if (quien) selUser(quien);
