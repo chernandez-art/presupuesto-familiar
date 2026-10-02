@@ -1343,11 +1343,21 @@ function ingDe(data) {
   if (prev.length) return map[prev[prev.length - 1]];
   return (data && data.ingresos) || { p1q1: 0, p1q2: 0, p2q1: 0, p2q2: 0 };
 }
+// Un rubro puede estar oculto SOLO para un mes (se borro ese mes pero sigue en los demas)
+function fijoOculto(data, mes, id) {
+  const o = data && data.fijosOcultos && data.fijosOcultos[mes];
+  return !!(o && o[id]);
+}
+// Rubros visibles en un mes: todos los globales menos los ocultos de ese mes
+function fijosDe(data, mes) {
+  mes = mes || (data && data.periodo) || PERIODO_MIN;
+  return ((data && data.fijos) || []).filter(f => !fijoOculto(data, mes, f.id));
+}
 // Quincena con pagos pendientes ("1"/"2") del mes m; "ambas" si estan todas al dia
 function quincenaPendiente(data, m) {
   m = m || (data && data.periodo) || PERIODO_MIN;
   const pagos = (data && data.pagos && data.pagos[m]) || {};
-  const fijos = (data && data.fijos) || [];
+  const fijos = fijosDe(data, m);
   const pend = q => fijos.some(f => f.quincena === q && (f.monto || 0) > 0 && !pagos[f.id]);
   if (pend("1")) return "1";
   if (pend("2")) return "2";
@@ -1450,7 +1460,7 @@ function App() {
     const ingQ2 = (ing.p1q2 || 0) + (ing.p2q2 || 0) + ((ing.p1q2d || 0) + (ing.p2q2d || 0)) * tc;
     const ingTotal = ingQ1 + ingQ2;
     const deudaTotal = data.deudas.reduce((s, d) => s + toCRC(d, tc), 0);
-    const fijos = data.fijos || [];
+    const fijos = fijosDe(data);
     const sumF = (q, catFilter) => fijos.filter(f => f.quincena === q && (catFilter ? catFilter(f.cat) : true)).reduce((s, f) => s + (f.monto || 0), 0);
     const fijosQ1 = sumF("1");
     const fijosQ2 = sumF("2");
@@ -1581,10 +1591,35 @@ function App() {
     });
     setModal(null);
   };
-  const delFijo = id => setData(d => ({
-    ...d,
-    fijos: d.fijos.filter(y => y.id !== id)
-  }));
+  const delFijo = id => setData(d => {
+    const m = d.periodo || PERIODO_MIN;
+    const mp = {
+      ...((d.fijosOcultos && d.fijosOcultos[m]) || {})
+    };
+    mp[id] = true;
+    return {
+      ...d,
+      fijosOcultos: {
+        ...(d.fijosOcultos || {}),
+        [m]: mp
+      }
+    };
+  });
+  const delFijoTodos = id => setData(d => {
+    const fo = {};
+    Object.keys(d.fijosOcultos || {}).forEach(k => {
+      const copia = {
+        ...(d.fijosOcultos[k] || {})
+      };
+      delete copia[id];
+      fo[k] = copia;
+    });
+    return {
+      ...d,
+      fijos: d.fijos.filter(y => y.id !== id),
+      fijosOcultos: fo
+    };
+  });
   const saveGasto = x => {
     setData(d => {
       const e = d.gastos.some(y => y.id === x.id);
@@ -1794,6 +1829,7 @@ function App() {
     item: modal.item,
     quincena: modal.q,
     onSave: saveFijo,
+    onDelAll: delFijoTodos,
     onClose: () => setModal(null)
   }), modal?.tipo === "gasto" && /*#__PURE__*/React.createElement(GastoModal, {
     item: modal.item,
@@ -2503,7 +2539,7 @@ function Presupuesto({
       gridTemplateColumns: qFoco === "ambas" ? undefined : "1fr"
     }
   }, cols.map(col => {
-    const items = (data.fijos || []).filter(f => f.quincena === col.q);
+    const items = fijosDe(data).filter(f => f.quincena === col.q);
     const ordenados = [...items].sort((a, b) => {
       const pa = pagos[a.id] ? 1 : 0,
         pb = pagos[b.id] ? 1 : 0;
@@ -2690,6 +2726,7 @@ function FijoModal({
   item,
   quincena,
   onSave,
+  onDelAll,
   onClose
 }) {
   const [f, setF] = useState(item || {
@@ -2777,7 +2814,20 @@ function FijoModal({
     }
   }, "Para pagos automáticos (Netflix, Disney, cloud…): así ves cuándo cae cada cobro.")), /*#__PURE__*/React.createElement("div", {
     className: "cf-modal-foot"
-  }, /*#__PURE__*/React.createElement("button", {
+  }, item && onDelAll && /*#__PURE__*/React.createElement("button", {
+    className: "cf-btn cf-btn-gh",
+    style: {
+      color: "var(--terracota)",
+      borderColor: "var(--terracota)",
+      marginRight: "auto"
+    },
+    onClick: () => {
+      if (window.confirm("¿Eliminar \"" + (f.rubro || "este rubro") + "\" de TODOS los meses? Esto no se puede deshacer.")) {
+        onDelAll(item.id);
+        onClose();
+      }
+    }
+  }, "Borrar de todos los meses"), /*#__PURE__*/React.createElement("button", {
     className: "cf-btn cf-btn-gh",
     onClick: onClose
   }, "Cancelar"), /*#__PURE__*/React.createElement("button", {
