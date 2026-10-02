@@ -787,6 +787,12 @@ const STYLES = `
 .cf-fijo.paid .dot{opacity:.35}
 .cf-fijo .cf-diachip{flex-shrink:0;font-size:11px;font-weight:600;color:var(--bosque);background:rgba(26,58,46,.08);border-radius:6px;padding:2px 7px;white-space:nowrap}
 .cf-fijo.paid .cf-diachip{opacity:.5}
+.cf-save{width:23px;height:23px;border-radius:7px;border:1.6px solid #e3d2b0;background:var(--papel);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;color:var(--ambar);transition:.15s;padding:0}
+.cf-save:hover{border-color:var(--ambar)}
+.cf-save.on{background:var(--ambar);border-color:var(--ambar);color:#fff}
+.cf-fijo.saved .rb{color:var(--ambar);font-weight:600}
+.cf-fijo.saved .mo{color:var(--ambar)}
+.cf-fijo .cf-savechip{flex-shrink:0;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.3px;color:#fff;background:var(--ambar);border-radius:6px;padding:2px 6px;white-space:nowrap}
 .cf-ia{background:linear-gradient(135deg,rgba(58,110,165,.08),rgba(45,106,79,.06));border:1px solid #d7e0ea;border-radius:12px;padding:12px 14px;margin-top:10px;font-size:13.5px;line-height:1.5;color:var(--tinta)}
 .cf-ia-head{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;letter-spacing:.3px;text-transform:uppercase;color:#3A6EA5;margin-bottom:6px}
 .cf-ia-btn{display:inline-flex;align-items:center;gap:6px;padding:7px 12px;border-radius:9px;border:1px solid #3A6EA5;background:transparent;color:#3A6EA5;font:inherit;font-weight:600;font-size:12.5px;cursor:pointer;transition:.15s}
@@ -1376,8 +1382,9 @@ function fijosDe(data, mes) {
 function quincenaPendiente(data, m) {
   m = m || (data && data.periodo) || PERIODO_MIN;
   const pagos = (data && data.pagos && data.pagos[m]) || {};
+  const apart = (data && data.apartados && data.apartados[m]) || {};
   const fijos = fijosDe(data, m);
-  const pend = q => fijos.some(f => f.quincena === q && (f.monto || 0) > 0 && !pagos[f.id]);
+  const pend = q => fijos.some(f => f.quincena === q && (f.monto || 0) > 0 && !pagos[f.id] && !apart[f.id]);
   if (pend("1")) return "1";
   if (pend("2")) return "2";
   return "ambas";
@@ -1667,6 +1674,20 @@ function App() {
       }
     };
   });
+  const toggleApartado = id => setData(d => {
+    const m = d.periodo || "2026-06";
+    const mp = {
+      ...(d.apartados && d.apartados[m] || {})
+    };
+    if (mp[id]) delete mp[id];else mp[id] = true;
+    return {
+      ...d,
+      apartados: {
+        ...(d.apartados || {}),
+        [m]: mp
+      }
+    };
+  });
   const updAhorro = (id, patch) => setData(d => ({
     ...d,
     ahorros: (d.ahorros || []).map(a => a.id === id ? { ...a, ...patch } : a)
@@ -1807,6 +1828,8 @@ function App() {
     calc: calc,
     pagos: data.pagos && data.pagos[data.periodo || "2026-06"] || {},
     onTogglePago: togglePago,
+    apartados: data.apartados && data.apartados[data.periodo || "2026-06"] || {},
+    onToggleApartado: toggleApartado,
     onAdd: q => setModal({
       tipo: "fijo",
       q
@@ -2519,6 +2542,8 @@ function Presupuesto({
   calc,
   pagos,
   onTogglePago,
+  apartados,
+  onToggleApartado,
   onAdd,
   onEdit,
   onDel,
@@ -2552,26 +2577,27 @@ function Presupuesto({
     style: {
       marginBottom: 16
     }
-  }, "Marca la casilla al hacer cada pago: el rubro se pone en verde y baja al final, asi arriba siempre ves lo que falta. El control es de ", /*#__PURE__*/React.createElement("b", null, mesNombre), " y se reinicia solo el proximo mes."), /*#__PURE__*/React.createElement("div", {
+  }, "Tocá ✓ cuando pagás un rubro, o 🐷 cuando ya apartaste esa plata (gasolina, alimentos…) aunque no la hayás gastado. Los dos bajan al final y arriba ves lo que falta. El control es de ", /*#__PURE__*/React.createElement("b", null, mesNombre), " y se reinicia solo el proximo mes."), /*#__PURE__*/React.createElement("div", {
     className: "cf-quincena-grid",
     style: {
       gridTemplateColumns: qFoco === "ambas" ? undefined : "1fr"
     }
   }, cols.map(col => {
     const items = fijosDe(data).filter(f => f.quincena === col.q);
+    const cub = f => pagos[f.id] || apartados[f.id]; // cubierto = pagado O guardado
     const ordenados = [...items].sort((a, b) => {
-      const pa = pagos[a.id] ? 1 : 0,
-        pb = pagos[b.id] ? 1 : 0;
-      if (pa !== pb) return pa - pb; // pendientes arriba, pagados abajo
+      const pa = cub(a) ? 1 : 0,
+        pb = cub(b) ? 1 : 0;
+      if (pa !== pb) return pa - pb; // pendientes arriba, cubiertos abajo
       const da = +a.dia || 99,
         db = +b.dia || 99;
       if (da !== db) return da - db; // luego por día de rebajo (los sin día, al final)
       return b.monto - a.monto; // y por monto
     });
     const total = items.reduce((s, f) => s + f.monto, 0);
-    const pagado = items.reduce((s, f) => s + (pagos[f.id] ? f.monto : 0), 0);
-    const falta = total - pagado;
-    const pct = total > 0 ? pagado / total * 100 : 0;
+    const cubierto = items.reduce((s, f) => s + (cub(f) ? f.monto : 0), 0);
+    const falta = total - cubierto;
+    const pct = total > 0 ? cubierto / total * 100 : 0;
     return /*#__PURE__*/React.createElement("div", {
       className: "cf-card",
       key: col.q
@@ -2610,16 +2636,23 @@ function Presupuesto({
       }
     }, "Sin rubros. Toca + para agregar.") : ordenados.map(f => {
       const esPagado = !!pagos[f.id];
+      const esGuardado = !esPagado && !!apartados[f.id];
       return /*#__PURE__*/React.createElement("div", {
-        className: "cf-fijo" + (esPagado ? " paid" : ""),
+        className: "cf-fijo" + (esPagado ? " paid" : esGuardado ? " saved" : ""),
         key: f.id
       }, /*#__PURE__*/React.createElement("button", {
         className: "cf-check",
         onClick: () => onTogglePago(f.id),
-        title: esPagado ? "Marcar como pendiente" : "Marcar como pagado"
+        title: esPagado ? "Pagado (tocá para quitar)" : "Marcar como pagado"
       }, esPagado && /*#__PURE__*/React.createElement(Check, {
         size: 15,
         strokeWidth: 3
+      })), /*#__PURE__*/React.createElement("button", {
+        className: "cf-save" + (esGuardado ? " on" : ""),
+        onClick: () => onToggleApartado(f.id),
+        title: esGuardado ? "Plata apartada (tocá para quitar)" : "Ya aparté esta plata (guardada)"
+      }, /*#__PURE__*/React.createElement(PiggyBank, {
+        size: 14
       })), /*#__PURE__*/React.createElement("span", {
         className: "dot",
         style: {
@@ -2627,7 +2660,9 @@ function Presupuesto({
         }
       }), /*#__PURE__*/React.createElement("span", {
         className: "rb"
-      }, f.rubro), f.dia && /*#__PURE__*/React.createElement("span", {
+      }, f.rubro), esGuardado && /*#__PURE__*/React.createElement("span", {
+        className: "cf-savechip"
+      }, "guardado"), f.dia && /*#__PURE__*/React.createElement("span", {
         className: "cf-diachip",
         title: "Se rebaja el día " + f.dia + " de cada mes"
       }, "día ", f.dia), /*#__PURE__*/React.createElement("span", {
@@ -2664,7 +2699,7 @@ function Presupuesto({
         fontWeight: 600,
         color: falta > 0 ? "var(--ambar)" : "var(--verde-claro)"
       }
-    }, falta > 0 ? `Falta pagar ${fmt(falta)}` : "Todo pagado este mes"), /*#__PURE__*/React.createElement("span", {
+    }, falta > 0 ? `Falta ${fmt(falta)}` : "Todo listo este mes"), /*#__PURE__*/React.createElement("span", {
       className: "cf-stat-sub",
       style: {
         margin: 0
