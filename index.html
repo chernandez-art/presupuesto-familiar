@@ -1605,6 +1605,40 @@ function App() {
     ...d,
     deudas: d.deudas.filter(y => y.id !== id)
   }));
+  const toggleDeudaPago = id => setData(d => {
+    const m = d.periodo || PERIODO_MIN;
+    const reg = {
+      ...((d.deudasPagadas && d.deudasPagadas[m]) || {})
+    };
+    const deuda = d.deudas.find(x => x.id === id);
+    if (!deuda) return d;
+    let deudas;
+    if (reg[id] != null) {
+      // revertir: devolver el monto que se había bajado este mes
+      const monto = reg[id];
+      delete reg[id];
+      deudas = d.deudas.map(x => x.id === id ? {
+        ...x,
+        saldo: (x.saldo || 0) + monto
+      } : x);
+    } else {
+      // registrar pago: bajar por la cuota, sin pasar de 0
+      const aplicado = Math.min(deuda.cuota || 0, deuda.saldo || 0);
+      reg[id] = aplicado;
+      deudas = d.deudas.map(x => x.id === id ? {
+        ...x,
+        saldo: (x.saldo || 0) - aplicado
+      } : x);
+    }
+    return {
+      ...d,
+      deudas,
+      deudasPagadas: {
+        ...(d.deudasPagadas || {}),
+        [m]: reg
+      }
+    };
+  });
   const saveFijo = x => {
     setData(d => {
       const e = d.fijos.some(y => y.id === x.id);
@@ -1814,6 +1848,8 @@ function App() {
     qFoco: qFoco
   }), tab === "deudas" && /*#__PURE__*/React.createElement(Deudas, {
     data: data,
+    pagosDeuda: data.deudasPagadas && data.deudasPagadas[data.periodo || PERIODO_MIN] || {},
+    onTogglePago: toggleDeudaPago,
     onAdd: () => setModal({
       tipo: "deuda"
     }),
@@ -2177,10 +2213,15 @@ function Linea({
 // =================== DEUDAS ===================
 function Deudas({
   data,
+  pagosDeuda,
+  onTogglePago,
   onAdd,
   onEdit,
   onDel
 }) {
+  pagosDeuda = pagosDeuda || {};
+  const _pp = (data.periodo || PERIODO_MIN).split("-");
+  const mesNombre = MESES[+_pp[1] - 1];
   return /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("div", {
     style: {
       display: "flex",
@@ -2205,7 +2246,7 @@ function Deudas({
     style: {
       marginBottom: 16
     }
-  }, "Aqui llevas el saldo de cada prestamo y cuanto te falta. Los pagos mensuales que afectan cada quincena se manejan en la pestana Presupuesto."), data.deudas.length === 0 ? /*#__PURE__*/React.createElement("div", {
+  }, "Al tocar ", /*#__PURE__*/React.createElement("b", null, "Registrar pago"), " de una deuda, el saldo baja por el monto de la cuota (en las de interés es aproximado). El pago cuenta para el mes que tenés elegido arriba (", /*#__PURE__*/React.createElement("b", null, mesNombre), ")."), data.deudas.length === 0 ? /*#__PURE__*/React.createElement("div", {
     className: "cf-card cf-empty"
   }, /*#__PURE__*/React.createElement(Landmark, {
     size: 40
@@ -2219,6 +2260,7 @@ function Deudas({
     const Icon = T.icon;
     const prog = d.montoOriginal > 0 ? Math.min(100, (d.montoOriginal - d.saldo) / d.montoOriginal * 100) : null;
     const meses = d.cuota > 0 ? Math.ceil(d.saldo / d.cuota) : null;
+    const pagado = pagosDeuda[d.id] != null;
     return /*#__PURE__*/React.createElement("div", {
       className: "cf-row",
       key: d.id
@@ -2247,7 +2289,19 @@ function Deudas({
       className: "cf-amt"
     }, /*#__PURE__*/React.createElement("b", {
       className: "cf-num"
-    }, fmt(d.saldo, d.moneda)), /*#__PURE__*/React.createElement("span", null, "Pago ", fmt(d.cuota, d.moneda), meses ? ` - ~${meses} meses` : "")), /*#__PURE__*/React.createElement("button", {
+    }, fmt(d.saldo, d.moneda)), /*#__PURE__*/React.createElement("span", null, "Pago ", fmt(d.cuota, d.moneda), meses ? ` - ~${meses} meses` : ""), onTogglePago && d.cuota > 0 && /*#__PURE__*/React.createElement("button", {
+      className: "cf-btn " + (pagado ? "cf-btn-gh" : "cf-btn-pri"),
+      style: Object.assign({
+        marginTop: 7,
+        padding: "6px 10px",
+        fontSize: 12.5
+      }, pagado ? {
+        color: "var(--verde-claro)",
+        borderColor: "var(--verde-claro)"
+      } : {}),
+      onClick: () => onTogglePago(d.id),
+      title: pagado ? "Pago registrado este mes (tocá para revertir)" : "Baja el saldo por el monto de la cuota"
+    }, pagado ? "✓ Pagó " + mesNombre : "Registrar pago")), /*#__PURE__*/React.createElement("button", {
       className: "cf-iconbtn",
       style: {
         color: "var(--tinta-suave)"
