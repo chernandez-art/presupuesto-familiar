@@ -1,0 +1,5 @@
+# Local Netlify folder
+.netlify
+
+# Config local de preview (no se versiona)
+.claude/
